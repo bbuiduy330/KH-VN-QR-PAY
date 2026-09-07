@@ -1,38 +1,36 @@
-# KH-VN QR PAY — QR Standardization
+# Phạm vi chuẩn hóa QR thực tế
 
-This layer is intentionally independent from the wallet and payment transport.
+Bản 1.0.0-demo triển khai **tập con có kiểm tra rõ ràng**, không tuyên bố chứng nhận tương thích mọi QR ngân hàng hoặc NBC/NAPAS.
 
-## Canonical pipeline
+## Pipeline
 
-`raw QR -> strict TLV parse -> CRC verification -> scheme classification -> account extraction -> currency/amount normalization -> payment quote`
+Raw text (tối đa 4096 ký tự) → TLV nghiêm ngặt → CRC-16/CCITT-FALSE → scheme → tài khoản → currency/amount → kiểm tra hạn → dữ liệu chuẩn hóa → quote demo.
 
-## Supported normalized currencies
+Tag/length là hai chữ số mỗi phần. Bộ đọc đếm Unicode code points cho giá trị TLV, CRC tính trên UTF-8. Không strip ký tự bên trong payload. Từ chối tag trùng, giá trị rỗng, thiếu dữ liệu, CRC không nằm cuối hoặc không đúng. Giữ nguyên top-level tags, accountTags, additional và raw để không làm mất extension.
 
-| QR code | Currency | Display |
+| Loại | Điều kiện | Phạm vi |
 |---|---|---|
-| 116 | KHR | Cambodian Riel |
-| 840 | USD | US Dollar |
-| 704 | VND | Vietnamese Dong |
+| KHQR cá nhân | KH + container 29, tài khoản subtag 00 | Đọc + quote/payment demo |
+| KHQR merchant | KH + container 30, tài khoản subtag 00 | Đọc + quote/payment demo |
+| KHQR USD/KHR | Currency 840/116 | USD tối đa 2 số lẻ; KHR nguyên |
+| KHQR động | Tag 01=12, có amount, timestamp 99/01 còn hạn | Thiếu hạn bị từ chối theo chính sách demo |
+| VietQR | VN + tag 38, GUID A000000727 | Currency 704, VND nguyên |
+| VietQR chuyển khoản/thẻ | QRIBFTTA / QRIBFTTC | Giữ bank BIN và account/card ID |
+| VNPayQR | VN + tag 26, GUID A000000775 | Chỉ đọc thông tin, không tạo quote |
+| MoMo/ZaloPay, extension riêng | Chưa có adapter riêng | Không tuyên bố hỗ trợ toàn bộ; chỉ xử lý nếu payload đúng tập con VietQR đã nêu |
 
-The referenced community SDK `mrrhak/khqr_sdk` documents the same currency codes, separate verify/decode APIs, static/dynamic QR handling, individual/merchant account containers, additional data and timestamp handling. This project implements its own TypeScript normalization layer rather than copying SDK source.
+Field chính: 53 currency; 54 amount; 58 country; 59 name; 60 city; 62 additional; 63 CRC. KHQR dùng 29/30; VietQR dùng 38 với beneficiary 01 chứa bank BIN 00 và account 01. Tên người nhận từ QR chỉ là dữ liệu do người tạo QR cung cấp, không được coi là xác minh ngân hàng.
 
-## KHQR fields we care about
+- QR có số tiền thì frontend không cho sửa và core đối chiếu lại khi xác nhận.
+- QR tĩnh không có số tiền: người dùng nhập amount riêng; vẫn phải validate trước quote.
+- QR động KHQR bị từ chối khi đã hết hạn hoặc thiếu expiration theo chính sách bảo thủ của bản demo.
+- CRC đúng không xác minh chủ tài khoản, không xác nhận đã nhận tiền và không cấp quyền thanh toán.
+- KHQR/VietQR mẫu trong dự án là dữ liệu tổng hợp với tài khoản giả lập; không gửi tiền bằng ứng dụng ngân hàng.
 
-- `00`: payload format indicator
-- `01`: point of initiation (`11` static, `12` dynamic)
-- `29` / `30`: individual / merchant account information container
-- `52`: merchant category code
-- `53`: transaction currency
-- `54`: transaction amount
-- `58`: country
-- `59`: merchant name
-- `60`: merchant city
-- `62`: additional data such as bill number, mobile number, store/terminal labels
-- `63`: CRC
-- `99`: timestamp extension used by this SDK for creation/expiration data
+## Tham khảo
 
-Dynamic payment QR must be treated more strictly than static QR. The referenced SDK rejects dynamic QR without amount and timestamp metadata.
+- KHQR community SDK: https://github.com/mrrhak/khqr_sdk
+- VietQR/VNPay implementation reference: https://github.com/xuannghia/vietnam-qr-pay
+- Independent VietQR fixture used by tests: https://github.com/monodyle/vnqrpay
 
-## Security rule
-
-The Mini App sends only `rawQrData`. The backend re-decodes and re-validates it. Client-supplied merchant name, amount or currency must never be authoritative.
+Không copy source của các repo tham khảo vào dự án. Trước production cần đối chiếu SDK/spec chính thức, sample từ ngân hàng/đối tác, thêm fixture merchant KHQR thật đã khử thông tin nhạy cảm, kiểm tra Unicode/length và extension của từng provider.

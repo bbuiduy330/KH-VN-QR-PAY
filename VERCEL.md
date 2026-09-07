@@ -1,11 +1,15 @@
-# Vercel deployment
+# Vercel
 
-The Vercel target is the root project with `apps/web` as its build output. The web app supports `VITE_DEMO_MODE=true`, so the demo can run without a live API or blockchain.
+Xem hướng dẫn từng bước trong `BAT-DAU-TU-DAY.md`.
 
-Build: `npm run build:web`
-Output: `apps/web/dist`
-Install: `npm install`
+- Root: root repository, không phải apps/web.
+- Framework Vite, Node 22.x.
+- Install `npm ci`, build `npm run build`, output `apps/web/dist`.
+- Không cần biến môi trường cho demo.
+- Không có catch-all SPA rewrite vì giao diện dùng hash navigation.
+- `/api/*` rewrite vào Node Function `api/index.js`.
+- `VITE_DEMO_MODE=false` hiển thị trang chặn tiền thật. Không có cấu hình bí mật nào có thể biến demo thành production.
+- Telegram optional: chỉ thêm TELEGRAM_BOT_TOKEN và SESSION_SECRET ở server; xem docs/TELEGRAM.md.
+- Không để mnemonic, private key hoặc bot token trong biến có tiền tố VITE_ hay trong GitHub.
 
-For the first demo set `VITE_DEMO_MODE=true`. For production set `VITE_DEMO_MODE=false` and provide `VITE_API_BASE_URL` pointing at the API service.
-
-After deployment, set the HTTPS URL as the Telegram Mini App / Web App URL in BotFather.
+Sau deploy kiểm tra `/api/health` trả JSON, trang chủ mở được và luồng demo hoàn tất. Việc build local thành công không thay thế kiểm tra trên deployment Vercel thực tế.

@@ -1,0 +1,12 @@
+{
+  "name": "@khvn/core",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./qr": "./qr.mjs",
+    "./money": "./money.mjs",
+    "./demo": "./demo.mjs",
+    "./fixtures": "./fixtures.mjs"
+  }
+}

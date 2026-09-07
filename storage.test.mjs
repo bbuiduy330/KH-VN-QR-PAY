@@ -1,0 +1,11 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {changeState,loadState,resetState} from '../apps/web/src/store.js';
+import {balance,deposit,STORAGE_KEY} from '../packages/core/demo.mjs';
+const data=new Map();
+Object.defineProperty(globalThis,'localStorage',{value:{getItem:key=>data.get(key)||null,setItem:(key,value)=>data.set(key,value)}});
+let queue=Promise.resolve();
+Object.defineProperty(globalThis,'navigator',{value:{locks:{request:(_name,fn)=>{const next=queue.then(fn);queue=next.catch(()=>{});return next;}}},configurable:true});
+test('Concurrent demo mutations serialize without lost balance',async()=>{data.clear();await Promise.all(Array.from({length:20},()=>changeState(s=>deposit(s,'1'))));assert.equal(balance(loadState()),'270.000000');});
+test('Reset recovers corrupt storage without trying to parse it first',async()=>{data.set(STORAGE_KEY,'not valid json');assert.throws(()=>loadState());await resetState();assert.equal(balance(loadState()),'250.000000');});
+test('Failed storage write does not falsely report payment success',async()=>{const original=localStorage.setItem;localStorage.setItem=()=>{throw new Error('Quota exceeded');};try{await assert.rejects(changeState(s=>deposit(s,'5')),/Quota/);}finally{localStorage.setItem=original;}assert.equal(balance(loadState()),'250.000000');});

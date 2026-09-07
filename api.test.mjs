@@ -1,0 +1,22 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {createHmac} from 'node:crypto';
+import {verifyTelegram,createSession,readSession} from '../services/api/auth.mjs';
+import {handle} from '../services/api/handler.mjs';
+import handler from '../api/index.js';
+import {sampleQR} from '../packages/core/fixtures.mjs';
+const token='123456:TEST_ONLY_NOT_A_REAL_TOKEN',secret='test-only-session-secret-32-characters',now=1788740000;
+function signed(time=now){const params=new URLSearchParams({auth_date:String(time),user:JSON.stringify({id:123,first_name:'Demo'}),query_id:'test'});const data=[...params].sort(([a],[b])=>a.localeCompare(b)).map(([k,v])=>`${k}=${v}`).join('\n');const key=createHmac('sha256','WebAppData').update(token).digest();params.set('hash',createHmac('sha256',key).update(data).digest('hex'));return params.toString();}
+test('Verify Telegram HMAC and user',()=>assert.equal(verifyTelegram(signed(),token,now).id,'123'));
+test('Reject forged Telegram identity',()=>assert.throws(()=>verifyTelegram(signed().replace('Demo','Fake'),token,now),/Chữ ký/));
+test('Reject old or future Telegram auth_date',()=>{assert.throws(()=>verifyTelegram(signed(now-301),token,now));assert.throws(()=>verifyTelegram(signed(now+31),token,now));});
+test('Reject duplicate Telegram keys',()=>assert.throws(()=>verifyTelegram(signed()+'&auth_date='+now,token,now),/trùng/));
+test('Session signature and expiry validated',()=>{const session=createSession({id:'123',firstName:'Demo'},secret,now);assert.equal(readSession(session,secret,now).id,'123');assert.throws(()=>readSession(session,secret,now+900));assert.throws(()=>readSession(session+'x',secret,now));});
+test('Health marks real payment disabled',async()=>{const r=await handle({method:'GET',path:'/health'});assert.equal(r.status,200);assert.equal(r.body.realPaymentsEnabled,false);});
+test('Server independently parses raw QR',async()=>{const r=await handle({method:'POST',path:'/qr/decode',body:{rawQrData:sampleQR()}});assert.equal(r.status,200);assert.equal(r.body.qr.account,'demo_shop@demo');});
+test('Quote API ignores client merchant and total',async()=>{const r=await handle({method:'POST',path:'/payment/quote',body:{rawQrData:sampleQR(),total:'0.01',merchant:'FORGED'}});assert.equal(r.status,200);assert.equal(r.body.quote.total,'4.613500');assert.equal(r.body.executable,false);});
+test('Real payment and withdrawal ALWAYS blocked, regardless of env',async()=>{for(const path of ['/payment/intent','/wallet/withdraw']){const r=await handle({method:'POST',path},{REAL_PAYMENTS_ENABLED:'true'});assert.equal(r.status,503);assert.equal(r.body.code,'REAL_PAYMENTS_DISABLED');}});
+test('Missing Telegram configuration is explicit, no fake login',async()=>{const r=await handle({method:'POST',path:'/auth/telegram',body:{initData:signed()}},{});assert.equal(r.status,503);});
+test('Unauthenticated me is rejected',async()=>{const r=await handle({method:'GET',path:'/me',headers:{}},{SESSION_SECRET:secret});assert.equal(r.status,401);});
+test('Vercel adapter routes rewritten requests and body',async()=>{const res={headers:{},setHeader(k,v){this.headers[k]=v;},status(n){this.code=n;return this;},json(v){this.value=v;return this;}};await handler({method:'POST',url:'/api/index?path=qr/decode',query:{path:'qr/decode'},headers:{},body:{rawQrData:sampleQR('VND')}},res);assert.equal(res.code,200);assert.equal(res.value.qr.currency,'VND');});
+test('Vercel adapter rejects malformed JSON',async()=>{const res={status(n){this.code=n;return this;},json(v){return this;}};await handler({method:'POST',url:'/api/qr/decode',headers:{},body:'{'},res);assert.equal(res.code,400);});

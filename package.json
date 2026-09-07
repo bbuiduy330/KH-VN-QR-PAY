@@ -1,1 +1,26 @@
-{"name":"kh-vn-qr-pay","private":true,"version":"0.1.0","packageManager":"npm@11","workspaces":["apps/*","services/*","packages/*"],"scripts":{"build:web":"npm --workspace apps/web run build","build:api":"npm --workspace services/api run build","build:bot":"npm --workspace apps/bot run build","test:qr":"npm --workspace services/api run test:qr","vercel-build":"npm run build:web"}}
+{
+  "name": "kh-vn-qr-pay",
+  "version": "1.0.0-demo",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "22.x"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "services/*"
+  ],
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "dev:web": "npm run dev --workspace @khvn/web",
+    "build": "npm run build --workspace @khvn/web",
+    "build:web": "npm run build",
+    "preview": "npm run preview --workspace @khvn/web",
+    "test": "node --test tests/*.test.mjs",
+    "test:qr": "node --test tests/qr.test.mjs",
+    "start:api": "node --env-file-if-exists=.env services/api/server.mjs",
+    "start:bot": "node --env-file-if-exists=.env apps/bot/index.mjs",
+    "check": "npm test && npm run build"
+  }
+}
